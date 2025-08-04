@@ -4,7 +4,7 @@ from multiprocessing import freeze_support
 def main():
     model = YOLO('yolov8n.yaml')
     model.train(
-        data='D:/训练数据/yolo_dataset/data.yaml',
+        data='D:/训练数据/yolodataset/data.yaml',
         epochs=60,
         imgsz=640,
         batch=12,
