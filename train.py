@@ -2,7 +2,7 @@ from ultralytics import YOLO
 from multiprocessing import freeze_support
 
 def main():
-    model = YOLO('yolov8n.yaml')
+    model = YOLO('D:\\yang\\Downloads\\ultralytics-main\\ultralytics-main\\runs\\detect\\train6\\weights\\last.pt')
     model.train(
         data='D:/训练数据/yolodataset/data.yaml',
         epochs=60,
@@ -10,12 +10,14 @@ def main():
         batch=12,
         workers=4,
         patience=5,
-        save=True,        # 每轮保存
-        val=True,         # 每轮验证
-        device=0,
+        save=True,
+        val=True,
         warmup_epochs=5,
+        warmup_momentum=0.8,
         cos_lr=True,
+        resume=True
     )
+
 
 if __name__ == '__main__':
     freeze_support()
