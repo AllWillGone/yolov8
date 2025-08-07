@@ -1,104 +1,176 @@
 import os
 import shutil
-from collections import Counter
+from collections import defaultdict
 
-# 配置路径
-base_path = "D:/训练数据/yolodataset"
-test_img_dir = os.path.join(base_path, "images/test")
-test_label_dir = os.path.join(base_path, "labels/test")  # 假设标签目录与图像目录平行
-val_img_dir = os.path.join(base_path, "images/val")
-val_label_dir = os.path.join(base_path, "labels/val")
-
-# 确保目标目录存在
-os.makedirs(val_img_dir, exist_ok=True)
-os.makedirs(val_label_dir, exist_ok=True)
-
-# 类别映射
-class_names = ["fire", "head", "helmet", "person", "smoke"]
-
-
-# 移动包含fire的测试集文件
-def move_fire_files():
-    moved_count = 0
-    # 遍历所有测试集标签文件
-    for label_file in os.listdir(test_label_dir):
-        if not label_file.endswith(".txt"):
-            continue
-
-        label_path = os.path.join(test_label_dir, label_file)
-        img_file = os.path.splitext(label_file)[0] + ".jpg"  # 假设图片为jpg格式
-
-        # 检查图片是否存在
-        img_path = os.path.join(test_img_dir, img_file)
-        if not os.path.exists(img_path):
-            # 尝试其他常见图片格式
-            for ext in ['.png', '.jpeg', '.bmp']:
-                alt_img_path = os.path.join(test_img_dir, os.path.splitext(label_file)[0] + ext)
-                if os.path.exists(alt_img_path):
-                    img_path = alt_img_path
-                    img_file = os.path.splitext(label_file)[0] + ext
-                    break
-            else:
-                print(f"警告: 找不到图片文件 {img_file} 或替代格式")
-                continue
-
-        # 检查标签是否包含fire（类别0）
-        with open(label_path, 'r') as f:
-            for line in f:
-                parts = line.strip().split()
-                if not parts:
-                    continue
-                if parts[0] == '0':  # fire类别
-                    # 移动标签文件
-                    shutil.move(label_path, os.path.join(val_label_dir, label_file))
-
-                    # 移动图片文件
-                    shutil.move(img_path, os.path.join(val_img_dir, img_file))
-
-                    moved_count += 1
-                    break  # 找到一个fire即移动，跳出当前文件循环
-    return moved_count
-
-
-# 统计验证集各类别数量
-def count_val_objects():
-    counter = Counter()
-    for label_file in os.listdir(val_label_dir):
-        if not label_file.endswith(".txt"):
-            continue
-
-        with open(os.path.join(val_label_dir, label_file), 'r') as f:
-            for line in f:
-                parts = line.strip().split()
-                if parts:
-                    class_id = int(parts[0])
-                    if class_id < len(class_names):
-                        counter[class_id] += 1
-    return counter
-
-
-# 执行移动操作
-print("开始移动包含fire的测试集文件到验证集...")
-moved_count = move_fire_files()
-print(f"\n移动完成! 共移动了 {moved_count} 个包含fire的文件到验证集")
-
-# 统计最终val集各类别数量
-val_counts = count_val_objects()
-print("\n验证集各类别统计:")
-for class_id, count in val_counts.items():
-    print(f"{class_names[class_id]}: {count} 个标注框")
-
-# 打印总框数和fire类别数量
-print(f"\n验证集总标注框数量: {sum(val_counts.values())}")
-print(f"验证集中 'fire' 类别数量: {val_counts.get(0, 0)}")
-sudo mkdir -p /etc/docker && sudo tee /etc/docker/daemon.json <<-'EOF'
-{
-    "registry-mirrors": [
-        "https://docker.m.daocloud.io",
-        "https://docker.imgdb.de",
-        "https://docker-0.unsee.tech",
-        "https://docker.hlmirror.com"
-    ]
+# 配置信息
+config = {
+    "path": "D:/训练数据/yolodataset",
+    "train": "images/train",
+    "val": "images/val",
+    "test": "images/test",
+    "nc": 5,
+    "names": ["fire", "head", "helmet", "person", "smoke"]
 }
-EOF
-sudo systemctl daemon-reload && sudo systemctl restart docker
+
+# 定义路径
+dataset_path = config['path']
+val_image_dir = os.path.join(dataset_path, config['val'])
+test_image_dir = os.path.join(dataset_path, config['test'])
+val_label_dir = os.path.join(dataset_path, config['val'].replace('images', 'labels'))
+test_label_dir = os.path.join(dataset_path, config['test'].replace('images', 'labels'))
+
+# 统计类别数量
+names = config['names']
+class_counts = {split: defaultdict(int) for split in ['val', 'test']}
+
+
+# 帮助函数：获取标签文件中的类别统计
+def get_class_stats(label_path):
+    class_stats = defaultdict(int)
+    with open(label_path, 'r') as lf:
+        for line in lf.readlines():
+            class_id = line.strip().split(' ')[0]
+            if class_id.isdigit() and 0 <= int(class_id) < len(names):
+                class_stats[names[int(class_id)]] += 1
+    return class_stats
+
+
+# 步骤1：从验证集删除只包含helmet的图片，最多减少3000个框
+def remove_helmet_only_from_val():
+    removed_count = 0
+    val_images = os.listdir(val_image_dir)
+
+    # 遍历验证集图片
+    for img_file in val_images:
+        img_path = os.path.join(val_image_dir, img_file)
+        label_file = img_file.split('.')[0] + '.txt'
+        label_path = os.path.join(val_label_dir, label_file)
+
+        # 检查标签是否存在
+        if not os.path.exists(label_path):
+            continue
+
+        # 获取标签中的类别统计
+        class_stats = get_class_stats(label_path)
+
+        # 如果标签中只有helmet
+        if set(class_stats.keys()) == {'helmet'}:
+            # 删除图片和标签
+            os.remove(img_path)
+            os.remove(label_path)
+            removed_count += class_stats['helmet']
+            print(f"Deleted from val: {img_file} and {label_file}")
+
+            # 检查是否达到最大删除框数
+            if removed_count >= 3000:
+                break
+
+    print(f"Removed {removed_count} boxes from val set.")
+
+
+# 步骤2：从测试集优先移入只含有fire的图片到验证集
+def move_fire_only_from_test_to_val():
+    moved_count = 0
+
+    # 遍历测试集图片
+    test_images = os.listdir(test_image_dir)
+    for img_file in test_images:
+        img_path = os.path.join(test_image_dir, img_file)
+        label_file = img_file.split('.')[0] + '.txt'
+        label_path = os.path.join(test_label_dir, label_file)
+
+        # 检查标签是否存在
+        if not os.path.exists(label_path):
+            continue
+
+        # 获取标签中的类别统计
+        class_stats = get_class_stats(label_path)
+
+        # 如果标签中只有fire
+        if set(class_stats.keys()) == {'fire'}:
+            # 移动图片和标签到验证集
+            shutil.move(img_path, os.path.join(val_image_dir, img_file))
+            shutil.move(label_path, os.path.join(val_label_dir, label_file))
+            moved_count += class_stats['fire']
+            print(f"Moved to val: {img_file} and {label_file}")
+
+    print(f"Moved {moved_count} fire boxes to val set.")
+
+
+# 步骤3：从测试集移入fire多于smoke的图片到验证集
+def move_fire_more_than_smoke_from_test_to_val():
+    moved_count = 0
+
+    # 遍历测试集图片
+    test_images = os.listdir(test_image_dir)
+    for img_file in test_images:
+        img_path = os.path.join(test_image_dir, img_file)
+        label_file = img_file.split('.')[0] + '.txt'
+        label_path = os.path.join(test_label_dir, label_file)
+
+        # 检查标签是否存在
+        if not os.path.exists(label_path):
+            continue
+
+        # 获取标签中的类别统计
+        class_stats = get_class_stats(label_path)
+
+        # 如果标签中有fire和smoke，且fire数量多于smoke
+        if 'fire' in class_stats and 'smoke' in class_stats and class_stats['fire'] > class_stats['smoke']:
+            # 移动图片和标签到验证集
+            shutil.move(img_path, os.path.join(val_image_dir, img_file))
+            shutil.move(label_path, os.path.join(val_label_dir, label_file))
+            moved_count += sum(class_stats.values())
+            print(f"Moved to val: {img_file} and {label_file}")
+
+    print(f"Moved {moved_count} boxes (fire>smoke) to val set.")
+
+
+# 执行所有步骤
+print("Step 1: Removing only-helmet images from validation set...")
+remove_helmet_only_from_val()
+
+print("\nStep 2: Moving fire-only images from test to validation set...")
+move_fire_only_from_test_to_val()
+
+print("\nStep 3: Moving fire-more-than-smoke images from test to validation set...")
+move_fire_more_than_smoke_from_test_to_val()
+
+# 重新统计类别数量
+# 获取所有图片文件名（不包含扩展名）
+val_images = os.listdir(val_image_dir)
+val_image_files = [f.split('.')[0] for f in val_images]
+test_images = os.listdir(test_image_dir)
+test_image_files = [f.split('.')[0] for f in test_images]
+
+# 统计验证集
+for img_file in val_image_files:
+    label_file = img_file + '.txt'
+    label_path = os.path.join(val_label_dir, label_file)
+    if os.path.exists(label_path):
+        with open(label_path, 'r') as lf:
+            for line in lf.readlines():
+                class_id = line.strip().split(' ')[0]
+                if class_id.isdigit() and 0 <= int(class_id) < len(names):
+                    class_counts['val'][names[int(class_id)]] += 1
+
+# 统计测试集
+for img_file in test_image_files:
+    label_file = img_file + '.txt'
+    label_path = os.path.join(test_label_dir, label_file)
+    if os.path.exists(label_path):
+        with open(label_path, 'r') as lf:
+            for line in lf.readlines():
+                class_id = line.strip().split(' ')[0]
+                if class_id.isdigit() and 0 <= int(class_id) < len(names):
+                    class_counts['test'][names[int(class_id)]] += 1
+
+# 输出统计结果
+print("\nFinal Statistics:")
+
+for split in ['val', 'test']:
+    print(f"\n{split} set:")
+    total_boxes = sum(class_counts[split].values())
+    print(f"Total boxes: {total_boxes}")
+    for class_name in names:
+        print(f"  {class_name}: {class_counts[split][class_name]}")

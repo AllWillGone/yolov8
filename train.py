@@ -2,7 +2,7 @@ from ultralytics import YOLO
 from multiprocessing import freeze_support
 
 def main():
-    model = YOLO('D:\\yang\\Downloads\\ultralytics-main\\ultralytics-main\\runs\\detect\\train6\\weights\\last.pt')
+    model = YOLO('D:\\yang\\Downloads\\ultralytics-main\\ultralytics-main\\runs\\detect\\train2\\weights\\last.pt')
     model.train(
         data='D:/训练数据/yolodataset/data.yaml',
         epochs=60,
