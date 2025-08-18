@@ -1,18 +1,17 @@
-import os
 import shutil
 from pathlib import Path
 
 
-def check_and_clean_dataset(dataset_type='val'):
+def check_and_clean_dataset(dataset_type="val"):
     """
-    检查指定数据集（train/val/test）中图片与标签的对应关系，删除不匹配的文件，并统计每类标签的框数
+    检查指定数据集（train/val/test）中图片与标签的对应关系，删除不匹配的文件，并统计每类标签的框数.
 
     Args:
         dataset_type: 数据集类型，可选 'train', 'val', 'test'
     """
     # 配置信息（从data.yaml提取）
     root_path = Path("D:/训练数据/yolodataset")
-    names = ['fire', 'head', 'helmet', 'person', 'smoke']
+    names = ["fire", "head", "helmet", "person", "smoke"]
     nc = len(names)  # 类别数量
 
     # 图片和标签文件夹路径
@@ -36,7 +35,7 @@ def check_and_clean_dataset(dataset_type='val'):
 
     # 获取所有图片和标签的文件名（不含扩展名）
     img_files = set()
-    for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']:
+    for ext in [".jpg", ".jpeg", ".png", ".bmp", ".gif"]:
         img_files.update([p.stem for p in img_dir.glob(f"*{ext}")])
 
     label_files = set(p.stem for p in label_dir.glob("*.txt"))
@@ -47,7 +46,7 @@ def check_and_clean_dataset(dataset_type='val'):
 
     # 移动不匹配的图片
     for img_stem in img_only:
-        for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']:
+        for ext in [".jpg", ".jpeg", ".png", ".bmp", ".gif"]:
             img_path = img_dir / f"{img_stem}{ext}"
             if img_path.exists():
                 shutil.move(str(img_path), str(mismatch_img_dir))
@@ -71,7 +70,7 @@ def check_and_clean_dataset(dataset_type='val'):
         if not label_path.exists():
             continue
 
-        with open(label_path, 'r', encoding='utf-8') as f:
+        with open(label_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -102,7 +101,7 @@ def check_and_clean_dataset(dataset_type='val'):
 
 if __name__ == "__main__":
     # 检查val集（可改为'train'或'test'）
-    check_and_clean_dataset(dataset_type='val')
+    check_and_clean_dataset(dataset_type="val")
     # 如需同时检查多个数据集，可以取消下面的注释
     # check_and_clean_dataset(dataset_type='train')
     # check_and_clean_dataset(dataset_type='test')
