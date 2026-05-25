@@ -1,4 +1,5 @@
 import os
+
 from PIL import Image
 
 # 根路径
@@ -26,7 +27,7 @@ for sub in sub_dirs:
             else:
                 img.save(img_path, "JPEG", quality=95)  # 原地覆盖
                 print(f"[覆盖] {sub}/{filename}")
-        except Exception as e:
+        except Exception:
             shutil.move(img_path, os.path.join(bad_dir, filename))
             print(f"[损坏] {sub}/{filename} 已移到 _bad")
 
