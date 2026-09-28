@@ -46,7 +46,7 @@ for label_file in label_files:
 
     # 检查标签文件是否包含person类别
     contains_person = False
-    with open(label_path, 'r', encoding='utf-8') as f:
+    with open(label_path, encoding="utf-8") as f:
         lines = f.readlines()
         for line in lines:
             parts = line.strip().split()
@@ -75,7 +75,7 @@ for label_file in label_files:
         print(f"已移动 {label_file} 及其图像 (包含person类别)")
 
 # 显示处理结果
-print(f"\n处理完成!")
+print("\n处理完成!")
 print(f"总处理文件数: {total_files}")
 print(f"包含person并移动的文件数: {moved_files}")
 print(f"目标图像文件夹: {target_images}")
